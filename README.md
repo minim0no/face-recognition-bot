@@ -4,4 +4,11 @@ A reddit bot that recognizes the faces of celebrities in a submission and return
 
 For usage,
 
-The bot takes in the inputs "!facerec <professionkeyword>=<numofpeople>"
+The bot takes in the inputs "!facerec (professionkeyword)=(numofpeople)"
+
+profession keywords can be keywords such as "reality" as in Reality Star, or "actor" for Actors.
+
+Example:
+
+!facerec actor=1 singer=2
+
