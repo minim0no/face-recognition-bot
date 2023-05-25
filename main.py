@@ -65,6 +65,9 @@ def Find_and_Reply(subreddit_name):
                 del keywords[0]
                 analyzer = CelebAnalyzer(img_url, keywords)
                 img, info = analyzer.celeb_analyze()
+                if info == None:
+                    comment.reply("Unable to retrieve image")
+                    continue
                 IMGUR_link = IMGUR_UPLOAD(img)['response']['data']['link']
                 celeb_attributes = []
                 for celebinfo in info:
@@ -82,10 +85,9 @@ def Find_and_Reply(subreddit_name):
                                     celeb_attributes.append(stuff)
                 reply = '\n\n'.join(f'{celeb_attribute[0]}\n\nAstrosign: {celeb_attribute[1]}; Age: {celeb_attribute[2]}; Birthday: {celeb_attribute[3]}; Birthplace: {celeb_attribute[4]}'  for celeb_attribute in celeb_attributes)
                 comment.reply(IMGUR_link + '\n\n' + reply)
-            
-                    
+
 
     
 
-Find_and_Reply('memes')
+success = Find_and_Reply('memes')
 
