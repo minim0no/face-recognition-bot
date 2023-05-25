@@ -35,7 +35,7 @@ class CelebAnalyzer:
         
         return img
     
-    def retrieve_hrefs(self):
+    def retrieve_hrefs(self, keywords=[]):
         months = {'January': '31',
                   'February': '29',
                   'March' : '31',
@@ -51,8 +51,20 @@ class CelebAnalyzer:
         hrefs = []
         for key in months:
             for i in range(1, int(months[key]) + 1):
-                href = 'https://www.famousbirthdays.com/' + key.lower() + str(i) + '.html' 
-                hrefs.append(href)
+                if not keywords:
+                    href = 'https://www.famousbirthdays.com/' + key.lower() + str(i) + '.html' 
+                    hrefs.append(href)
+                else:
+                    for keyword in keywords:
+                        with open('professions.txt', 'r') as myfile:
+                            professions = myfile.readlines()
+                            professions = [profession.strip() for profession in professions]
+                            final_profession = ''
+                            for profession in professions:
+                                if keyword in profession:
+                                    final_profession += profession
+                        href = 'https://www.famousbirthdays.com/date/' + key.lower() + str(i) + f'-{final_profession}' + '.html' 
+                        hrefs.append(href)
         return hrefs
     
     def check_database(self, keywords):
@@ -82,6 +94,8 @@ class CelebAnalyzer:
             html_doc = response.text
             soup = BeautifulSoup(html_doc, 'html.parser')
             imgtags = soup.find_all('img', limit=30)
+            if not keywords:
+                imgtags = soup.find_all('img', limit=10)
             for imgtag in imgtags:
                 if imgtag['alt'] in potential:
                     continue
@@ -90,21 +104,22 @@ class CelebAnalyzer:
                 divtag = imgtag.parent
                 atag = divtag.parent
                 prof_ptag = atag.find('p', class_='tile__description type-14-16')
-                for keyword in keywords:
-                    if not (prof_ptag == None):
-                        prof = prof_ptag.text
-                        print(imgtag['alt'])
-                        print(prof)     
-                        if keyword == 'unknown':
-                            flag = False
-                            break               
-                        if not(keyword in prof.lower()):
-                            print('SKIPPING')
-                            flag = True
-                            break
-                        elif keyword in prof.lower():
-                            flag = False
-                            break
+                if not (prof_ptag == None):
+                    prof = prof_ptag.text
+                    if keywords:
+                        for keyword in keywords:
+                            print(imgtag['alt'])
+                            print(prof)     
+                            if keyword == 'unknown':
+                                flag = False
+                                break               
+                            if not(keyword in prof.lower()):
+                                print('SKIPPING')
+                                flag = True
+                                break
+                            elif keyword in prof.lower():
+                                flag = False
+                                break
                 if flag:
                     continue 
                 try:
@@ -158,8 +173,8 @@ class CelebAnalyzer:
                                         if snap:
                                             potential.append(name)
                                             potential_href.append(celeb_href)
-                                            profs.append(prof)
                                             if not (prof_ptag == None):
+                                                profs.append(prof)
                                                 celeb_data[prof] = href
                                                 doc = celeb_data
                                                 update = {"$set": doc}
@@ -194,8 +209,8 @@ class CelebAnalyzer:
                                         if snap:
                                             potential.append(name)
                                             potential_href.append(celeb_href)
-                                            profs.append(prof)
                                             if not (prof_ptag == None):
+                                                profs.append(prof)
                                                 celeb_data[prof] = href
                                                 doc = celeb_data
                                                 update = {"$set": doc}
@@ -230,8 +245,8 @@ class CelebAnalyzer:
                                         if snap:
                                             potential.append(name)
                                             potential_href.append(celeb_href)
-                                            profs.append(prof)
                                             if not (prof_ptag == None):
+                                                profs.append(prof)
                                                 celeb_data[prof] = href
                                                 doc = celeb_data
                                                 update = {"$set": doc}
@@ -265,14 +280,50 @@ class CelebAnalyzer:
                                         if snap:
                                             potential.append(name)
                                             potential_href.append(celeb_href)
-                                            profs.append(prof)
                                             if not (prof_ptag == None):
+                                                profs.append(prof)
                                                 celeb_data[prof] = href
                                                 doc = celeb_data
                                                 update = {"$set": doc}
                                                 celeb_hrefs.update_one(celeb_data, update, upsert=True)
                                         if (len(potential) + len(extra)) == len(keywords):
                                             return potential, potential_href, profs, locations, []
+                            if not keywords:
+                                if len(imghrefs) == 1:
+                                    comparisons = []
+                                    for imghref in imghrefs:
+                                        comparisons.append(fr.face_encodings(self.URL2IMG(imghref)))
+                                    results = []
+                                    for comparison_encodings in comparisons:
+                                        for comparison_encoding in comparison_encodings:
+                                            result = fr.compare_faces([face_encoding], comparison_encoding)
+                                            try:
+                                                comparison_distance = fr.face_distance([face_encoding], comparison_encoding)
+                                                best_match_index = np.argmin(comparison_distance)
+                                                distance_check.append(result[best_match_index])
+                                            except:
+                                                comparison_distance =[]
+                                                print('woops')                                          
+                                            results.append(result[0])   
+                                    if results.count([True]) == 1  and not (distance_check.count([False]) == 0):
+                                        if name not in potential and name not in extra:                       
+                                            for i, detector in enumerate(location_detector):                                            
+                                                if (detector[1] not in locations) and (detector[0] == face_encoding).all():
+                                                    locations.append(detector[1])
+                                                    print(locations)
+                                                    snap = True
+                                                    break
+                                            if snap:
+                                                potential.append(name)
+                                                potential_href.append(celeb_href)
+                                                if not (prof_ptag == None):
+                                                    profs.append(prof)
+                                                    celeb_data[prof] = href
+                                                    doc = celeb_data
+                                                    update = {"$set": doc}
+                                                    celeb_hrefs.update_one(celeb_data, update, upsert=True)
+                                            if (len(potential) + len(extra)) == len(keywords):
+                                                return potential, potential_href, profs, locations, []
         print('some were not found')
         return potential, potential_href, profs, locations, dup_locations
         
@@ -290,7 +341,7 @@ class CelebAnalyzer:
         attributes_children = soup.find('div', class_='bio-module__person-attributes').findChildren('a')
         attributes = {}
         info = {}
-        for child in attributes_children:           #definitely optimizable, but am i gonna do it? no
+        for child in attributes_children:
             if 'year' in child['href']:
                 attributes["year"] = child.text
                 continue
@@ -339,7 +390,6 @@ class CelebAnalyzer:
                 stuff = keyword.split('=')
                 for i in range(int(stuff[1])):
                     keys.append(stuff[0])
-                    
         if img is None:
             return "Unable to retrieve image.", None
         temp_hrefs = self.check_database(keys)
@@ -365,13 +415,23 @@ class CelebAnalyzer:
                 potential_locations = temp_locations 
         else:
             potential_names, potential_hrefs, profs, potential_locations, dup_locations = self.retrieve_celeb(img, hrefs, extra=temp_names, keywords=keys)
-            
-            
+        
+        unfound_keys = []
+        if len(potential_names) < len(keys) and (keys.count(['unknown']) != len(keys)-len(potential_names)):
+            print('as preceded')
+            for key in keys:
+                if key in profs or key == 'unknown':
+                    continue
+                unfound_keys.append(key)
+            hrefs = self.retrieve_hrefs(unfound_keys)
+            print(hrefs)
+            extra_names, extra_hrefs, profs, extra_locations, extra_dup_locations = self.retrieve_celeb(img, hrefs)
+            potential_names = potential_names + extra_names
+            potential_locations = potential_locations + extra_locations 
         dup_locations = list(set(potential_locations + dup_locations))
         potential_locations += dup_locations
         while len(potential_names) < len(keys):
             potential_names.append('unknown')
-        potential_locations += dup_locations
         
         for (top, right, bottom, left), name in zip(potential_locations, potential_names):
             # Draw a box around the face
@@ -388,16 +448,15 @@ class CelebAnalyzer:
             
         return img, celeb_info
 
-        
 
-# img_url = 'https://static.independent.co.uk/2022/03/10/16/newFile-9.jpg'
-# keywords = ['reality=4']
+img_url = 'https://www.famousbirthdays.com/headshots/cuba-gooding-jr-9.jpg'
+keywords = ['actor=1']
 
-# analyzer = CelebAnalyzer(img_url, keywords)
-# img, info = analyzer.celeb_analyze()
+analyzer = CelebAnalyzer(img_url, keywords)
+img, info = analyzer.celeb_analyze()
 
-                
 
-# cv2.imshow('image', img)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
+
+cv2.imshow('image', img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
